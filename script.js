@@ -4,82 +4,115 @@ const state = {
     timer: null,
     totalDuration: 0,
     remainingTime: 0,
-    todayRoutine: [],
     currentExerciseIndex: 0,
-    clickTimeout: null,
     clickCount: 0,
-    settings: { streak: 7, history: ['2026-04-10', '2026-04-11', '2026-04-12', '2026-04-13'] }
-};
-
-// --- Gesture Detection Fix ---
-const handleClicks = (e, doubleAction, tripleAction) => {
-    state.clickCount++;
-    clearTimeout(state.clickTimeout);
-    
-    state.clickTimeout = setTimeout(() => {
-        if (state.clickCount === 2) doubleAction();
-        else if (state.clickCount === 3) tripleAction();
-        state.clickCount = 0;
-    }, 250); // 250ms window to capture taps
+    clickTimer: null,
+    routine: JSON.parse(localStorage.getItem('workout_routine')) || {
+        monday: [{ name: "Pushups", dur: 60, break: 15, img: "" }],
+        tuesday: [{ name: "Squats", dur: 45, break: 10, img: "" }],
+        // ... add other days
+    }
 };
 
 const ui = {
     title: document.getElementById('today-title'),
-    timer: document.getElementById('timer-display'),
-    flame: document.getElementById('streak-flame'),
-    bar: document.getElementById('progress-bar'),
-    btn: document.getElementById('play-pause-btn'),
-    admin: document.getElementById('admin-overlay')
+    flame: document.getElementById('flame-trigger'),
+    timerContainer: document.getElementById('timer-display'),
+    progress: document.getElementById('progress-bar'),
+    playBtn: document.getElementById('play-pause-btn'),
+    exView: document.getElementById('exercise-view'),
+    brView: document.getElementById('breathing-view'),
+    admin: document.getElementById('admin-overlay'),
+    calendar: document.getElementById('calendar-overlay')
 };
 
-// --- Core Actions ---
-const toggleTimerMode = () => {
-    ui.timer.classList.toggle('bar-mode');
-    console.log("Mode Toggled");
+// --- Gesture Manager ---
+const handleGesture = (e) => {
+    state.clickCount++;
+    clearTimeout(state.clickTimer);
+    state.clickTimer = setTimeout(() => {
+        if (state.clickCount === 2) resetExercise();
+        if (state.clickCount === 3) toggleBarMode();
+        state.clickCount = 0;
+    }, 300);
 };
 
-const resetSet = () => {
+const toggleBarMode = () => {
+    ui.timerContainer.classList.toggle('bar-mode');
+    document.querySelector('.control-bar').classList.toggle('bar-mode-active');
+};
+
+const resetExercise = () => {
     clearInterval(state.timer);
     state.isRunning = false;
+    ui.playBtn.innerText = '▶';
     loadExercise(state.currentExerciseIndex);
-    ui.btn.innerHTML = '▶';
 };
 
-// --- Event Listeners ---
-ui.timer.addEventListener('click', (e) => {
-    handleClicks(e, resetSet, toggleTimerMode);
-});
+// --- Logic ---
+const loadExercise = (idx) => {
+    const day = new Date().toLocaleDateString('en-US', { weekday: 'lowercase' });
+    const todayData = state.routine[day] || [{ name: "Rest", dur: 0, break: 0 }];
+    const ex = todayData[idx];
 
-ui.title.addEventListener('click', (e) => {
-    state.clickCount++;
-    clearTimeout(state.clickTimeout);
-    state.clickTimeout = setTimeout(() => {
-        if (state.clickCount === 2) ui.admin.classList.remove('hidden');
-        state.clickCount = 0;
-    }, 250);
-});
+    if (!ex) {
+        document.getElementById('exercise-name').innerText = "Workout Complete!";
+        return;
+    }
 
-// Play/Pause
-ui.btn.addEventListener('click', () => {
+    state.currentExerciseIndex = idx;
+    state.totalDuration = ex.dur;
+    state.remainingTime = ex.dur;
+    state.isBreathing = false;
+    
+    document.getElementById('exercise-name').innerText = ex.name;
+    document.getElementById('exercise-image').style.backgroundImage = ex.img ? `url(${ex.img})` : 'none';
+    
+    ui.exView.classList.remove('hidden');
+    ui.brView.classList.add('hidden');
+    updateUI();
+};
+
+const startTimer = () => {
     if (state.isRunning) {
         clearInterval(state.timer);
         state.isRunning = false;
-        ui.btn.innerHTML = '▶';
+        ui.playBtn.innerText = '▶';
     } else {
         state.isRunning = true;
-        ui.btn.innerHTML = '||';
-        state.timer = setInterval(runTimer, 1000);
+        ui.playBtn.innerText = '||';
+        state.timer = setInterval(tick, 1000);
     }
-});
+};
 
-const runTimer = () => {
+const tick = () => {
     if (state.remainingTime > 0) {
         state.remainingTime--;
         updateUI();
     } else {
         clearInterval(state.timer);
-        // Trigger breathing or next
+        if (!state.isBreathing) {
+            startBreathing();
+        } else {
+            state.isRunning = false;
+            ui.playBtn.innerText = '▶';
+            loadExercise(state.currentExerciseIndex + 1);
+        }
     }
+};
+
+const startBreathing = () => {
+    const day = new Date().toLocaleDateString('en-US', { weekday: 'lowercase' });
+    const breakDur = state.routine[day][state.currentExerciseIndex].break;
+    
+    state.isBreathing = true;
+    state.totalDuration = breakDur;
+    state.remainingTime = breakDur;
+    
+    ui.exView.classList.add('hidden');
+    ui.brView.classList.remove('hidden');
+    
+    state.timer = setInterval(tick, 1000);
 };
 
 const updateUI = () => {
@@ -87,16 +120,16 @@ const updateUI = () => {
     const s = state.remainingTime % 60;
     document.getElementById('timer-min').innerText = String(m).padStart(2, '0');
     document.getElementById('timer-sec').innerText = String(s).padStart(2, '0');
-    ui.bar.style.width = `${(1 - state.remainingTime / state.totalDuration) * 100}%`;
+    ui.progress.style.width = `${(1 - state.remainingTime / state.totalDuration) * 100}%`;
 };
 
-// Initial Load
-const loadExercise = (idx) => {
-    const routine = JSON.parse(localStorage.getItem('routine')) || [{name: "Pushups", dur: 60}];
-    state.todayRoutine = routine;
-    state.totalDuration = routine[idx].dur;
-    state.remainingTime = routine[idx].dur;
-    updateUI();
-};
+// --- Events ---
+ui.playBtn.onclick = startTimer;
+ui.timerContainer.onclick = handleGesture;
+ui.title.ondblclick = () => ui.admin.classList.remove('hidden');
+ui.flame.ondblclick = () => ui.calendar.classList.remove('hidden');
+document.getElementById('close-admin').onclick = () => ui.admin.classList.add('hidden');
+document.getElementById('close-calendar').onclick = () => ui.calendar.classList.add('hidden');
 
+// Start
 loadExercise(0);
