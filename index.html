@@ -3,25 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minimalist Workout</title>
+    <title>Workout Flow</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="light-theme">
-    
     <div class="app-container">
         <header>
-            <h1 id="today-title" class="today-title">MONDAY: PUSH</h1>
+            <h1 id="today-title" class="today-title">TITLE</h1>
             <div id="flame-trigger" class="streak-flame">
-                <span class="flame-icon">🔥</span> <span id="streak-count">7</span>
+                <span class="flame-icon">🔥</span> <span id="streak-count">0</span>
             </div>
         </header>
 
         <main class="content-area">
             <div id="exercise-view" class="active-view">
                 <div id="exercise-image" class="exercise-image"></div>
-                <p id="exercise-name" class="exercise-name">Loading...</p>
+                <p id="exercise-name" class="exercise-name">Ready?</p>
             </div>
-
             <div id="breathing-view" class="hidden">
                 <div class="breathing-ring-container">
                     <div class="breathing-ring"></div>
@@ -34,23 +32,20 @@
             <div class="progress-container">
                 <div id="progress-bar" class="progress-bar"></div>
             </div>
-            
             <div id="timer-display" class="timer-display">
                 <span id="timer-min" class="timer-min">00</span><span class="colon">:</span><span id="timer-sec" class="timer-sec">00</span>
             </div>
-            
             <button id="play-pause-btn" class="play-pause-btn">▶</button>
         </footer>
     </div>
 
     <div id="calendar-overlay" class="overlay hidden">
-        <div class="modal">
+        <div class="modal calendar-modal">
             <span id="close-calendar" class="close-icon">&times;</span>
-            <h3>Workout Streak</h3>
-            <div class="calendar-grid-container">
+            <h3 style="margin-bottom:20px;">Workout Streak</h3>
+            <div class="calendar-wrapper">
                 <div class="streak-line"></div>
-                <div id="calendar-grid" class="calendar-grid">
-                    </div>
+                <div id="calendar-grid" class="calendar-grid"></div>
             </div>
         </div>
     </div>
@@ -58,11 +53,11 @@
     <div id="admin-overlay" class="overlay hidden">
         <div class="modal">
             <h2>Edit Routine</h2>
-            <div id="admin-inputs"></div>
-            <button id="add-exercise" class="btn-secondary">+ Add Exercise</button>
+            <div id="admin-inputs" class="admin-scroll-area"></div>
+            <button id="add-exercise" class="btn-add">+ Add Exercise</button>
             <div class="modal-actions">
-                <button id="save-routine" class="btn-primary">Save</button>
-                <button id="close-admin" class="btn-close">Close</button>
+                <button id="save-routine" class="btn-primary">Save Changes</button>
+                <button id="close-admin" class="btn-close">Cancel</button>
             </div>
         </div>
     </div>
