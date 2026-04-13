@@ -2,19 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
     <title>Workout Flow Pro</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="light-theme">
     <div class="app-container">
         <header>
-            <div class="header-left">
-                <span id="theme-toggle" class="icon-btn">🌓</span>
-            </div>
             <h1 id="today-title" class="today-title">ROUTINE</h1>
             <div id="flame-trigger" class="streak-flame">
                 <span class="flame-icon">🔥</span> <span id="streak-count">0</span>
@@ -48,39 +43,37 @@
     </div>
 
     <div id="calendar-overlay" class="overlay hidden">
-        <div class="modal">
+        <div class="modal calendar-modal">
             <span id="close-calendar" class="close-icon">&times;</span>
-            <h3 style="margin-bottom:20px; text-align:center;">Workout Streak</h3>
-            <div class="calendar-wrapper">
-                <div class="streak-line"></div>
-                <div id="calendar-grid" class="calendar-grid"></div>
+            <h2 id="calendar-month-year">Month Year</h2>
+            <div class="calendar-header">
+                <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
             </div>
+            <div id="calendar-grid" class="calendar-grid-full"></div>
         </div>
     </div>
 
     <div id="admin-overlay" class="overlay hidden">
-        <div class="modal">
-            <h2 style="margin-bottom:10px;">Workout Settings</h2>
+        <div class="modal admin-modal">
+            <span id="close-admin" class="close-icon">&times;</span>
+            <h2>Edit Routine</h2>
             
-            <div class="routine-manager">
+            <div class="admin-top-bar">
                 <select id="routine-select" class="dropdown"></select>
-                <div class="add-routine-box">
-                    <input type="text" id="new-routine-name" placeholder="New Routine Name">
-                    <button id="add-routine-btn" class="btn-util">Add</button>
+                <div class="routine-add-row">
+                    <input type="text" id="new-routine-name" placeholder="Routine Name">
+                    <button id="add-routine-btn" class="btn-accent">New</button>
                 </div>
             </div>
 
-            <div id="admin-inputs" class="admin-scroll-area"></div>
+            <div id="admin-inputs" class="admin-list"></div>
             
-            <button id="add-exercise" class="btn-util w-100">+ Add Exercise</button>
-            
-            <div class="modal-actions mt-10">
-                <button id="save-routine" class="btn-primary">Save Routine</button>
-                <button id="close-admin" class="btn-close">Cancel</button>
-            </div>
-            
-            <div class="modal-actions mt-10">
-                <button id="delete-all" class="btn-danger w-100">Delete All Data & Reset</button>
+            <div class="admin-actions-footer">
+                <button id="add-exercise" class="btn-secondary">+ Add Exercise</button>
+                <div class="btn-group">
+                    <button id="save-routine" class="btn-primary">Save Changes</button>
+                    <button id="delete-all" class="btn-danger">Wipe Data</button>
+                </div>
             </div>
         </div>
     </div>
