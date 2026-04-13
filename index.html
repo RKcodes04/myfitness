@@ -3,12 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workout Flow</title>
+    <title>Workout Flow Pro</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="light-theme">
     <div class="app-container">
         <header>
+            <div class="header-left">
+                <span id="theme-toggle" class="icon-btn">🌓</span>
+                <span id="sound-toggle" class="icon-btn">muted</span>
+            </div>
             <h1 id="today-title" class="today-title">TITLE</h1>
             <div id="flame-trigger" class="streak-flame">
                 <span class="flame-icon">🔥</span> <span id="streak-count">0</span>
@@ -29,18 +33,20 @@
         </main>
 
         <footer class="control-bar">
-            <div class="progress-container">
-                <div id="progress-bar" class="progress-bar"></div>
-            </div>
-            <div id="timer-display" class="timer-display">
-                <span id="timer-min" class="timer-min">00</span><span class="colon">:</span><span id="timer-sec" class="timer-sec">00</span>
+            <div id="interaction-zone" class="interaction-zone">
+                <div class="progress-container">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+                <div id="timer-display" class="timer-display">
+                    <span id="timer-min" class="timer-min">00</span><span class="colon">:</span><span id="timer-sec" class="timer-sec">00</span>
+                </div>
             </div>
             <button id="play-pause-btn" class="play-pause-btn">▶</button>
         </footer>
     </div>
 
     <div id="calendar-overlay" class="overlay hidden">
-        <div class="modal calendar-modal">
+        <div class="modal">
             <span id="close-calendar" class="close-icon">&times;</span>
             <h3 style="margin-bottom:20px;">Workout Streak</h3>
             <div class="calendar-wrapper">
@@ -52,11 +58,13 @@
 
     <div id="admin-overlay" class="overlay hidden">
         <div class="modal">
-            <h2>Edit Routine</h2>
+            <h2>Edit Routines</h2>
+            <div id="day-selector" class="day-selector">
+                </div>
             <div id="admin-inputs" class="admin-scroll-area"></div>
-            <button id="add-exercise" class="btn-add">+ Add Exercise</button>
+            <button id="add-exercise" class="btn-util">+ Add Exercise</button>
             <div class="modal-actions">
-                <button id="save-routine" class="btn-primary">Save Changes</button>
+                <button id="save-routine" class="btn-primary">Save</button>
                 <button id="close-admin" class="btn-close">Cancel</button>
             </div>
         </div>
