@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Workout Flow Pro</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -11,9 +12,8 @@
         <header>
             <div class="header-left">
                 <span id="theme-toggle" class="icon-btn">🌓</span>
-                <span id="sound-toggle" class="icon-btn">muted</span>
             </div>
-            <h1 id="today-title" class="today-title">TITLE</h1>
+            <h1 id="today-title" class="today-title">ROUTINE</h1>
             <div id="flame-trigger" class="streak-flame">
                 <span class="flame-icon">🔥</span> <span id="streak-count">0</span>
             </div>
@@ -48,7 +48,7 @@
     <div id="calendar-overlay" class="overlay hidden">
         <div class="modal">
             <span id="close-calendar" class="close-icon">&times;</span>
-            <h3 style="margin-bottom:20px;">Workout Streak</h3>
+            <h3 style="margin-bottom:20px; text-align:center;">Workout Streak</h3>
             <div class="calendar-wrapper">
                 <div class="streak-line"></div>
                 <div id="calendar-grid" class="calendar-grid"></div>
@@ -58,14 +58,27 @@
 
     <div id="admin-overlay" class="overlay hidden">
         <div class="modal">
-            <h2>Edit Routines</h2>
-            <div id="day-selector" class="day-selector">
+            <h2 style="margin-bottom:10px;">Workout Settings</h2>
+            
+            <div class="routine-manager">
+                <select id="routine-select" class="dropdown"></select>
+                <div class="add-routine-box">
+                    <input type="text" id="new-routine-name" placeholder="New Routine Name">
+                    <button id="add-routine-btn" class="btn-util">Add</button>
                 </div>
+            </div>
+
             <div id="admin-inputs" class="admin-scroll-area"></div>
-            <button id="add-exercise" class="btn-util">+ Add Exercise</button>
+            
+            <button id="add-exercise" class="btn-util w-100">+ Add Exercise</button>
+            
             <div class="modal-actions">
-                <button id="save-routine" class="btn-primary">Save</button>
+                <button id="save-routine" class="btn-primary">Save Routine</button>
                 <button id="close-admin" class="btn-close">Cancel</button>
+            </div>
+            
+            <div class="modal-actions mt-10">
+                <button id="delete-all" class="btn-danger w-100">Delete All Data & Reset</button>
             </div>
         </div>
     </div>
