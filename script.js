@@ -1,17 +1,18 @@
 const state = {
     isRunning: false,
     isBreathing: false,
-    isMuted: true,
-    timer: null,
+    isMuted: true, // Muted initially to comply with browser auto-play policies
+    animFrame: null,
+    endTime: 0,
     totalDuration: 0,
     remainingTime: 0,
     currentExerciseIndex: 0,
+    lastBeep: 0,
     clickCount: 0,
     clickTimer: null,
-    editingDay: "",
-    routine: JSON.parse(localStorage.getItem('workout_routine')) || {
-        monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: []
-    },
+    activeRoutine: localStorage.getItem('active_routine') || "Default",
+    editingRoutine: "",
+    routine: JSON.parse(localStorage.getItem('workout_routine')) || { "Default": [] },
     streakHistory: JSON.parse(localStorage.getItem('streak_history')) || []
 };
 
@@ -33,7 +34,6 @@ const playBeep = (freq, dur) => {
 
 const ui = {
     themeBtn: document.getElementById('theme-toggle'),
-    soundBtn: document.getElementById('sound-toggle'),
     title: document.getElementById('today-title'),
     interactionZone: document.getElementById('interaction-zone'),
     progress: document.getElementById('progress-bar'),
@@ -42,9 +42,9 @@ const ui = {
     brView: document.getElementById('breathing-view'),
     admin: document.getElementById('admin-overlay'),
     calendar: document.getElementById('calendar-overlay'),
-    daySelector: document.getElementById('day-selector'),
+    routineSelect: document.getElementById('routine-select'),
     adminInputs: document.getElementById('admin-inputs'),
-    flame: document.getElementById('flame-trigger') // FIX: Added missing DOM reference
+    flame: document.getElementById('flame-trigger')
 };
 
 // --- Gestures ---
@@ -60,36 +60,32 @@ ui.interactionZone.onclick = () => {
 
 const toggleMode = () => ui.interactionZone.classList.toggle('bar-mode');
 const resetExercise = () => {
-    clearInterval(state.timer);
+    cancelAnimationFrame(state.animFrame);
     state.isRunning = false;
     ui.playBtn.innerText = '▶';
     loadExercise(state.currentExerciseIndex);
 };
 
-// --- Logic ---
-const getTodayKey = () => new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date()).toLowerCase();
-
+// --- Core Logic ---
 const loadExercise = (idx) => {
-    const day = getTodayKey();
-    const todayData = state.routine[day] || [];
-    const ex = todayData[idx];
+    // If routine doesn't exist, fallback to empty array
+    const routineData = state.routine[state.activeRoutine] || [];
+    const ex = routineData[idx];
 
-    ui.title.innerText = `${day.toUpperCase()}`;
+    ui.title.innerText = state.activeRoutine.toUpperCase();
     
-    // FIX: Clean handling of end-of-workout state
     if (!ex) {
-        document.getElementById('exercise-name').innerText = "Workout Complete!";
+        document.getElementById('exercise-name').innerText = routineData.length === 0 ? "No Exercises" : "Workout Complete!";
         document.getElementById('exercise-image').style.backgroundImage = 'none';
         state.remainingTime = 0;
-        state.totalDuration = 1; // Prevents division by zero in UI update
+        state.totalDuration = 1; 
         ui.playBtn.style.opacity = '0.5';
-        ui.playBtn.style.pointerEvents = 'none'; // Disables play button
+        ui.playBtn.style.pointerEvents = 'none';
         updateUI();
-        saveStreak();
+        if(routineData.length > 0) saveStreak();
         return;
     }
 
-    // Reactivate controls if routine exists
     ui.playBtn.style.opacity = '1';
     ui.playBtn.style.pointerEvents = 'auto';
     
@@ -97,35 +93,59 @@ const loadExercise = (idx) => {
     state.totalDuration = ex.dur;
     state.remainingTime = ex.dur;
     state.isBreathing = false;
+    
     document.getElementById('exercise-name').innerText = ex.name;
     document.getElementById('exercise-image').style.backgroundImage = ex.img ? `url(${ex.img})` : '';
+    
     ui.exView.classList.remove('hidden');
     ui.brView.classList.add('hidden');
     updateUI();
 };
 
 const startTimer = () => {
+    // Fix browser audio policy and merged unmute logic
     if (audioCtx.state === 'suspended') audioCtx.resume();
+    state.isMuted = false;
+
     if (state.isRunning) {
-        clearInterval(state.timer);
+        cancelAnimationFrame(state.animFrame);
         state.isRunning = false;
         ui.playBtn.innerText = '▶';
+        // Calculate exact remaining time dynamically on pause
+        state.remainingTime = (state.endTime - Date.now()) / 1000;
     } else {
         state.isRunning = true;
         ui.playBtn.innerText = '||';
         playBeep(880, 0.1);
-        state.timer = setInterval(tick, 1000);
+        
+        // Setup high-performance timestamp end target
+        state.endTime = Date.now() + (state.remainingTime * 1000);
+        state.lastBeep = Math.ceil(state.remainingTime);
+        state.animFrame = requestAnimationFrame(tick);
     }
 };
 
+// Smooth high-frequency update loop
 const tick = () => {
-    if (state.remainingTime > 0) {
-        state.remainingTime--;
-        if (state.remainingTime < 4) playBeep(440, 0.05);
+    const now = Date.now();
+    
+    if (now < state.endTime) {
+        state.remainingTime = (state.endTime - now) / 1000;
+        
+        // Handle warning beeps precisely without spamming
+        const sec = Math.ceil(state.remainingTime);
+        if (sec <= 3 && sec > 0 && state.lastBeep !== sec) {
+            playBeep(440, 0.05);
+            state.lastBeep = sec;
+        }
+        
         updateUI();
+        state.animFrame = requestAnimationFrame(tick);
     } else {
-        clearInterval(state.timer);
+        state.remainingTime = 0;
+        updateUI();
         playBeep(660, 0.2);
+        
         if (!state.isBreathing) {
             startBreathing();
         } else {
@@ -137,80 +157,94 @@ const tick = () => {
 };
 
 const startBreathing = () => {
-    const day = getTodayKey();
-    const ex = state.routine[day][state.currentExerciseIndex];
+    const ex = state.routine[state.activeRoutine][state.currentExerciseIndex];
     state.isBreathing = true;
     state.totalDuration = ex.break;
     state.remainingTime = ex.break;
+    
     ui.exView.classList.add('hidden');
     ui.brView.classList.remove('hidden');
-    state.timer = setInterval(tick, 1000);
+    
+    state.endTime = Date.now() + (state.remainingTime * 1000);
+    state.animFrame = requestAnimationFrame(tick);
 };
 
 const updateUI = () => {
-    const m = Math.floor(Math.max(0, state.remainingTime) / 60);
-    const s = Math.max(0, state.remainingTime) % 60;
+    const timeToFormat = Math.max(0, state.remainingTime);
+    const m = Math.floor(timeToFormat / 60);
+    const s = Math.floor(timeToFormat % 60); // Floor prevents jittery seconds
+    
     document.getElementById('timer-min').innerText = String(m).padStart(2, '0');
     document.getElementById('timer-sec').innerText = String(s).padStart(2, '0');
     
-    // FIX: Prevent NaN / Infinity if duration is 0
+    // Smooth width calculation based on exact floats
     const percent = state.totalDuration > 0 ? (1 - state.remainingTime / state.totalDuration) * 100 : 0;
     ui.progress.style.width = `${percent}%`;
 };
 
-// --- Admin & Day Selection ---
-const renderDaySelector = () => {
-    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    ui.daySelector.innerHTML = days.map(d => `
-        <input type="radio" name="admin-day" id="day-${d}" value="${d}" ${d === getTodayKey() ? 'checked' : ''}>
-        <label for="day-${d}">${d.slice(0,3).toUpperCase()}</label>
-    `).join('');
-    
-    ui.daySelector.onchange = (e) => loadAdminFields(e.target.value);
-    loadAdminFields(getTodayKey());
+// --- Dynamic Admin & Routine Selection ---
+const renderRoutineSelector = () => {
+    ui.routineSelect.innerHTML = Object.keys(state.routine).map(r => 
+        `<option value="${r}" ${r === state.editingRoutine ? 'selected' : ''}>${r}</option>`
+    ).join('');
 };
 
-const loadAdminFields = (day) => {
-    state.editingDay = day;
+const loadAdminFields = (routineName) => {
+    state.editingRoutine = routineName;
     ui.adminInputs.innerHTML = '';
-    const items = state.routine[day] || [];
+    const items = state.routine[routineName] || [];
     items.forEach(ex => addEntry(ex));
+};
+
+ui.routineSelect.onchange = (e) => loadAdminFields(e.target.value);
+
+document.getElementById('add-routine-btn').onclick = () => {
+    const input = document.getElementById('new-routine-name');
+    const name = input.value.trim();
+    if(name && !state.routine[name]) {
+        state.routine[name] = [];
+        input.value = '';
+        state.editingRoutine = name;
+        renderRoutineSelector();
+        loadAdminFields(name);
+    }
 };
 
 const addEntry = (data = {name: "", dur: 60, break: 15, img: ""}) => {
     const div = document.createElement('div');
     div.className = 'admin-exercise-entry';
     div.innerHTML = `
-        <input type="text" placeholder="Name" class="in-name" value="${data.name}">
-        <input type="number" placeholder="Duration (s)" class="in-dur" value="${data.dur}">
-        <input type="number" placeholder="Break (s)" class="in-break" value="${data.break}">
-        <input type="text" placeholder="Image URL" class="in-img" value="${data.img}">
+        <input type="text" placeholder="Exercise Name" class="in-name" value="${data.name}">
+        <div style="display:flex; gap:10px;">
+            <input type="number" placeholder="Dur (s)" class="in-dur" value="${data.dur}">
+            <input type="number" placeholder="Break (s)" class="in-break" value="${data.break}">
+        </div>
+        <input type="text" placeholder="Image URL (Optional)" class="in-img" value="${data.img}">
     `;
     ui.adminInputs.appendChild(div);
 };
 
 const saveRoutine = () => {
     const entries = [...ui.adminInputs.querySelectorAll('.admin-exercise-entry')];
-    state.routine[state.editingDay] = entries.map(e => ({
+    state.routine[state.editingRoutine] = entries.map(e => ({
         name: e.querySelector('.in-name').value,
         dur: parseInt(e.querySelector('.in-dur').value) || 0,
         break: parseInt(e.querySelector('.in-break').value) || 0,
         img: e.querySelector('.in-img').value
     }));
-    localStorage.setItem('workout_routine', JSON.stringify(state.routine));
-    ui.admin.classList.add('hidden');
     
-    // Refresh only if modifying today's routine
-    if(state.editingDay === getTodayKey()) {
-        resetExercise(); 
-    }
+    // Set the edited routine as the currently active one
+    state.activeRoutine = state.editingRoutine;
+    
+    localStorage.setItem('workout_routine', JSON.stringify(state.routine));
+    localStorage.setItem('active_routine', state.activeRoutine);
+    
+    ui.admin.classList.add('hidden');
+    resetExercise(); 
 };
 
 // --- Calendar & Streak ---
-const updateStreakUI = () => {
-    // FIX: Added function to dynamically update the streak visual on the frontend
-    document.getElementById('streak-count').innerText = state.streakHistory.length;
-};
+const updateStreakUI = () => document.getElementById('streak-count').innerText = state.streakHistory.length;
 
 const saveStreak = () => {
     const today = new Date().toDateString();
@@ -233,23 +267,35 @@ const renderCalendar = () => {
         const active = state.streakHistory.includes(d.toDateString());
         const cell = document.createElement('div');
         cell.className = 'day-cell';
-        cell.innerHTML = `
-            <div class="flame-box ${active ? 'flame-active' : ''}"><span>${d.getDate()}</span></div>
-        `;
+        cell.innerHTML = `<div class="flame-box ${active ? 'flame-active' : ''}"><span>${d.getDate()}</span></div>`;
         grid.appendChild(cell);
+    }
+};
+
+// --- Nuclear Reset ---
+document.getElementById('delete-all').onclick = () => {
+    if(confirm("Are you sure? This will delete all routines, history, and streak data. The app will reload.")) {
+        localStorage.clear();
+        window.location.reload(true); // Hard refresh
     }
 };
 
 // --- Toggles & Init ---
 ui.themeBtn.onclick = () => document.body.classList.toggle('dark-theme');
-ui.soundBtn.onclick = () => {
-    state.isMuted = !state.isMuted;
-    ui.soundBtn.innerText = state.isMuted ? 'muted' : 'sound';
-    if (!state.isMuted && audioCtx.state === 'suspended') audioCtx.resume();
-};
 ui.playBtn.onclick = startTimer;
-ui.title.ondblclick = () => { ui.admin.classList.remove('hidden'); renderDaySelector(); };
-ui.flame.ondblclick = () => { ui.calendar.classList.remove('hidden'); renderCalendar(); };
+
+ui.title.ondblclick = () => { 
+    ui.admin.classList.remove('hidden'); 
+    state.editingRoutine = state.activeRoutine;
+    renderRoutineSelector();
+    loadAdminFields(state.editingRoutine);
+};
+
+ui.flame.ondblclick = () => { 
+    ui.calendar.classList.remove('hidden'); 
+    renderCalendar(); 
+};
+
 document.getElementById('add-exercise').onclick = () => addEntry();
 document.getElementById('save-routine').onclick = saveRoutine;
 document.getElementById('close-admin').onclick = () => ui.admin.classList.add('hidden');
