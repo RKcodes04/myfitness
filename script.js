@@ -1,215 +1,522 @@
+/* =============================================
+   WORKOUT FLOW PRO — SCRIPT.JS
+   Full rewrite — all requested changes applied
+   ============================================= */
+
+// ─── State ───────────────────────────────────────────────────────────────────
 const state = {
-    isRunning: false,
-    isBreathing: false,
-    isMuted: true,
-    animFrame: null,
-    endTime: 0,
-    totalDuration: 0,
-    remainingTime: 0,
+    isRunning:            false,
+    isBreathing:          false,
+    // rAF-based timer
+    rafId:                null,
+    startTimestamp:       null,
+    startRemaining:       0,
+    totalDuration:        0,
+    remainingTime:        0,
+    // exercise
     currentExerciseIndex: 0,
-    activeRoutine: localStorage.getItem('active_routine') || "Default",
-    routine: JSON.parse(localStorage.getItem('workout_routine')) || { "Default": [] },
-    streakHistory: JSON.parse(localStorage.getItem('streak_history')) || [],
-    clickCount: 0,
-    clickTimer: null
+    activeRoutineId:      null,   // uuid of current routine
+    // gestures
+    flameTaps:            0,
+    flameTimer:           null,
+    zoneTaps:             0,
+    zoneTimer:            null,
+    // admin editing
+    editingRoutineId:     null,
+    // persistence
+    routines:  JSON.parse(localStorage.getItem('wf_routines'))  || [],
+    streakHistory: JSON.parse(localStorage.getItem('wf_streak')) || []
 };
 
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// Seed demo routines if first launch
+if (state.routines.length === 0) {
+    state.routines = [
+        {
+            id: uid(), name: 'Push Day',
+            exercises: [
+                { name: 'Push-ups',      dur: 45, rest: 20, img: '' },
+                { name: 'Dips',          dur: 40, rest: 20, img: '' },
+                { name: 'Pike Push-ups', dur: 35, rest: 25, img: '' }
+            ]
+        },
+        {
+            id: uid(), name: 'Pull Day',
+            exercises: [
+                { name: 'Pull-ups',      dur: 40, rest: 20, img: '' },
+                { name: 'Chin-ups',      dur: 35, rest: 20, img: '' },
+                { name: 'Inverted Rows', dur: 45, rest: 25, img: '' }
+            ]
+        },
+        {
+            id: uid(), name: 'Leg Day',
+            exercises: [
+                { name: 'Squats',        dur: 50, rest: 20, img: '' },
+                { name: 'Lunges',        dur: 45, rest: 20, img: '' },
+                { name: 'Calf Raises',   dur: 40, rest: 15, img: '' }
+            ]
+        }
+    ];
+    persist();
+}
+
+// Set first routine as active by default
+if (!state.activeRoutineId) {
+    state.activeRoutineId = state.routines[0]?.id || null;
+}
+
+// ─── Audio ───────────────────────────────────────────────────────────────────
+let audioCtx = null;
+
+const ensureAudio = () => {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+};
+
+const playBeep = (freq, dur) => {
+    if (!audioCtx) return;
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + dur);
+};
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
 const ui = {
-    flame: document.getElementById('flame-trigger'),
-    title: document.getElementById('today-title'),
-    interaction: document.getElementById('interaction-zone'),
-    playBtn: document.getElementById('play-pause-btn'),
-    admin: document.getElementById('admin-overlay'),
-    calendar: document.getElementById('calendar-overlay'),
-    routineSelect: document.getElementById('routine-select'),
-    adminInputs: document.getElementById('admin-inputs'),
-    progress: document.getElementById('progress-bar')
+    title:          document.getElementById('today-title'),
+    flame:          document.getElementById('flame-trigger'),
+    streakCount:    document.getElementById('streak-count'),
+    exView:         document.getElementById('exercise-view'),
+    brView:         document.getElementById('breathing-view'),
+    completeView:   document.getElementById('complete-view'),
+    exImg:          document.getElementById('exercise-image'),
+    exName:         document.getElementById('exercise-name'),
+    setLabel:       document.getElementById('set-label'),
+    breathRing:     document.getElementById('breathing-ring'),
+    breathCount:    document.getElementById('breathing-countdown'),
+    zone:           document.getElementById('interaction-zone'),
+    progress:       document.getElementById('progress-bar'),
+    timerMin:       document.getElementById('timer-min'),
+    timerSec:       document.getElementById('timer-sec'),
+    playBtn:        document.getElementById('play-pause-btn'),
+    adminOverlay:   document.getElementById('admin-overlay'),
+    calOverlay:     document.getElementById('calendar-overlay'),
+    routineTabs:    document.getElementById('routine-tabs'),
+    adminInputs:    document.getElementById('admin-inputs'),
+    calGrid:        document.getElementById('calendar-grid'),
+    calLabel:       document.getElementById('cal-month-label'),
+    totalStreak:    document.getElementById('total-streak')
 };
 
-// MULTI-TAP GESTURES
-const handleTaps = (count, actions) => {
-    state.clickCount++;
-    clearTimeout(state.clickTimer);
-    state.clickTimer = setTimeout(() => {
-        if (actions[state.clickCount]) actions[state.clickCount]();
-        state.clickCount = 0;
-    }, 350);
-};
+// Calendar month navigation
+let calViewDate = new Date();
 
-ui.flame.onclick = () => handleTaps(state.clickCount, {
-    2: () => { ui.calendar.classList.remove('hidden'); renderFullCalendar(); },
-    3: () => document.body.classList.toggle('dark-theme')
-});
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function uid() {
+    return Math.random().toString(36).slice(2, 10);
+}
 
-ui.interaction.onclick = () => handleTaps(state.clickCount, {
-    2: () => resetExercise(),
-    3: () => document.querySelector('.control-bar').classList.toggle('bar-mode')
-});
+function persist() {
+    localStorage.setItem('wf_routines', JSON.stringify(state.routines));
+    localStorage.setItem('wf_streak',   JSON.stringify(state.streakHistory));
+}
 
-ui.title.onclick = () => handleTaps(state.clickCount, {
-    2: () => { 
-        ui.admin.classList.remove('hidden'); 
-        renderAdmin(); 
+function getActiveRoutine() {
+    return state.routines.find(r => r.id === state.activeRoutineId) || state.routines[0] || null;
+}
+
+function stopRAF() {
+    if (state.rafId) cancelAnimationFrame(state.rafId);
+    state.rafId = null;
+}
+
+// ─── Timer (requestAnimationFrame) ───────────────────────────────────────────
+function startTimer() {
+    ensureAudio();   // merge audio resume with play button
+
+    if (state.isRunning) {
+        // Pause: save remaining time
+        stopRAF();
+        state.isRunning = false;
+        ui.playBtn.textContent = '▶';
+        return;
     }
-});
 
-// CORE ENGINE
-const loadExercise = (idx) => {
-    const list = state.routine[state.activeRoutine] || [];
-    const ex = list[idx];
-    ui.title.innerText = state.activeRoutine.toUpperCase();
+    const routine = getActiveRoutine();
+    if (!routine || routine.exercises.length === 0) return;
 
-    if (!ex) {
-        document.getElementById('exercise-name').innerText = "Session Complete!";
-        document.getElementById('exercise-image').style.backgroundImage = '';
+    state.isRunning      = true;
+    state.startTimestamp = null;
+    state.startRemaining = state.remainingTime;
+    ui.playBtn.textContent = '⏸';
+    playBeep(880, 0.12);
+
+    function frame(ts) {
+        if (!state.isRunning) return;
+
+        if (!state.startTimestamp) state.startTimestamp = ts;
+        const elapsed = (ts - state.startTimestamp) / 1000;
+        state.remainingTime = Math.max(0, state.startRemaining - elapsed);
+
+        // Countdown beeps in last 3 seconds
+        const wholeLeft = Math.ceil(state.remainingTime);
+        if (wholeLeft <= 3 && wholeLeft !== state._lastBeepAt) {
+            state._lastBeepAt = wholeLeft;
+            playBeep(440, 0.05);
+        }
+
+        updateUI();
+
+        if (state.remainingTime > 0) {
+            state.rafId = requestAnimationFrame(frame);
+        } else {
+            state.isRunning = false;
+            ui.playBtn.textContent = '▶';
+            playBeep(660, 0.25);
+            if (!state.isBreathing) {
+                startBreathing();
+            } else {
+                loadExercise(state.currentExerciseIndex + 1);
+            }
+        }
+    }
+
+    state._lastBeepAt = null;
+    state.rafId = requestAnimationFrame(frame);
+}
+
+// ─── Exercise Loading ─────────────────────────────────────────────────────────
+function loadExercise(idx) {
+    stopRAF();
+    state.isRunning   = false;
+    state.isBreathing = false;
+    ui.playBtn.textContent = '▶';
+
+    const routine = getActiveRoutine();
+    if (!routine) {
+        showComplete();
+        return;
+    }
+
+    ui.title.textContent = routine.name.toUpperCase();
+
+    if (idx >= routine.exercises.length) {
+        showComplete();
         saveStreak();
         return;
     }
 
+    const ex = routine.exercises[idx];
     state.currentExerciseIndex = idx;
-    state.totalDuration = ex.dur;
-    state.remainingTime = ex.dur;
-    state.isBreathing = false;
-    document.getElementById('exercise-name').innerText = ex.name;
-    document.getElementById('exercise-image').style.backgroundImage = ex.img ? `url(${ex.img})` : '';
-    document.getElementById('exercise-view').classList.remove('hidden');
-    document.getElementById('breathing-view').classList.add('hidden');
-    updateUI();
-};
+    state.totalDuration        = ex.dur;
+    state.remainingTime        = ex.dur;
 
-const tick = () => {
-    const now = Date.now();
-    if (now < state.endTime) {
-        state.remainingTime = (state.endTime - now) / 1000;
+    ui.exName.textContent = ex.name;
+    ui.setLabel.textContent = `Exercise ${idx + 1} of ${routine.exercises.length}`;
+    ui.exImg.style.backgroundImage = ex.img ? `url(${ex.img})` : '';
+
+    showPanel('exercise');
+    updateUI();
+}
+
+function startBreathing() {
+    const routine = getActiveRoutine();
+    const ex = routine?.exercises[state.currentExerciseIndex];
+    if (!ex || !ex.rest) {
+        loadExercise(state.currentExerciseIndex + 1);
+        return;
+    }
+
+    state.isBreathing    = true;
+    state.totalDuration  = ex.rest;
+    state.remainingTime  = ex.rest;
+    state.startTimestamp = null;
+    state.startRemaining = ex.rest;
+
+    showPanel('breathing');
+    updateBreathingCountdown();
+
+    state.isRunning = true;
+    ui.playBtn.textContent = '⏸';
+
+    function frame(ts) {
+        if (!state.isRunning) return;
+        if (!state.startTimestamp) state.startTimestamp = ts;
+        const elapsed = (ts - state.startTimestamp) / 1000;
+        state.remainingTime = Math.max(0, state.startRemaining - elapsed);
         updateUI();
-        state.animFrame = requestAnimationFrame(tick);
-    } else {
-        if (!state.isBreathing) {
-            const ex = state.routine[state.activeRoutine][state.currentExerciseIndex];
-            state.isBreathing = true;
-            state.totalDuration = ex.break;
-            state.remainingTime = ex.break;
-            document.getElementById('exercise-view').classList.add('hidden');
-            document.getElementById('breathing-view').classList.remove('hidden');
-            state.endTime = Date.now() + (state.remainingTime * 1000);
-            state.animFrame = requestAnimationFrame(tick);
+        updateBreathingCountdown();
+        if (state.remainingTime > 0) {
+            state.rafId = requestAnimationFrame(frame);
         } else {
             state.isRunning = false;
-            ui.playBtn.innerText = '▶';
+            ui.playBtn.textContent = '▶';
+            playBeep(660, 0.2);
             loadExercise(state.currentExerciseIndex + 1);
         }
     }
-};
+    state._lastBeepAt = null;
+    state.rafId = requestAnimationFrame(frame);
+}
 
-const updateUI = () => {
-    const t = Math.max(0, state.remainingTime);
-    const m = Math.floor(t / 60);
-    const s = Math.floor(t % 60);
-    document.getElementById('timer-min').innerText = String(m).padStart(2, '0');
-    document.getElementById('timer-sec').innerText = String(s).padStart(2, '0');
-    ui.progress.style.width = `${(1 - t / state.totalDuration) * 100}%`;
-};
+function updateBreathingCountdown() {
+    ui.breathCount.textContent = Math.ceil(state.remainingTime);
+    // Scale breathing ring inversely with progress for sync
+    const progress = 1 - (state.remainingTime / state.totalDuration);
+    const scale    = 0.78 + 0.3 * Math.sin(progress * Math.PI * 2 * (state.totalDuration / 4));
+    // Let CSS animation handle it — but nudge opacity via JS for sync feel
+    ui.breathRing.style.opacity = 0.4 + 0.6 * Math.abs(Math.sin(progress * Math.PI * (state.totalDuration / 4)));
+}
 
-// CALENDAR
-const renderFullCalendar = () => {
-    const now = new Date();
-    const month = now.getMonth();
-    const year = now.getFullYear();
-    document.getElementById('calendar-month-year').innerText = now.toLocaleString('default', { month: 'long', year: 'numeric' });
-    
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const grid = document.getElementById('calendar-grid');
-    grid.innerHTML = '';
+function showComplete() {
+    showPanel('complete');
+    ui.title.textContent = 'DONE 💪';
+}
 
-    for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div'));
-    for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = new Date(year, month, d).toDateString();
-        const div = document.createElement('div');
-        div.className = `calendar-day ${state.streakHistory.includes(dateStr) ? 'active' : ''}`;
-        div.innerText = d;
-        grid.appendChild(div);
-    }
-};
+function showPanel(which) {
+    ui.exView.classList.add('hidden');
+    ui.brView.classList.add('hidden');
+    ui.completeView.classList.add('hidden');
+    if (which === 'exercise') ui.exView.classList.remove('hidden');
+    if (which === 'breathing') ui.brView.classList.remove('hidden');
+    if (which === 'complete')  ui.completeView.classList.remove('hidden');
+}
 
-// ADMIN
-const renderAdmin = () => {
-    ui.routineSelect.innerHTML = Object.keys(state.routine).map(r => `<option value="${r}" ${r===state.activeRoutine?'selected':''}>${r}</option>`).join('');
-    loadAdminRows(ui.routineSelect.value);
-};
+// ─── UI Update ────────────────────────────────────────────────────────────────
+function updateUI() {
+    const rem = state.remainingTime;
+    const m   = Math.floor(rem / 60);
+    const s   = rem % 60;
+    ui.timerMin.textContent = String(m).padStart(2, '0');
+    ui.timerSec.textContent = String(Math.floor(s)).padStart(2, '0');
 
-const loadAdminRows = (name) => {
-    ui.adminInputs.innerHTML = '';
-    (state.routine[name] || []).forEach(ex => {
-        const div = document.createElement('div');
-        div.className = 'admin-row';
-        div.innerHTML = `
-            <input type="text" placeholder="Name" class="in-name" value="${ex.name}">
-            <input type="number" placeholder="Sec" class="in-dur" value="${ex.dur}">
-            <input type="number" placeholder="Rest" class="in-break" value="${ex.break}">
-            <input type="text" placeholder="Image URL" class="in-img" value="${ex.img}">
-        `;
-        ui.adminInputs.appendChild(div);
-    });
-};
+    const pct = state.totalDuration > 0
+        ? (1 - rem / state.totalDuration) * 100
+        : 0;
+    ui.progress.style.width = `${pct}%`;
+}
 
-document.getElementById('save-routine').onclick = () => {
-    const rows = [...document.querySelectorAll('.admin-row')];
-    state.routine[ui.routineSelect.value] = rows.map(r => ({
-        name: r.querySelector('.in-name').value,
-        dur: parseInt(r.querySelector('.in-dur').value),
-        break: parseInt(r.querySelector('.in-break').value),
-        img: r.querySelector('.in-img').value
-    }));
-    state.activeRoutine = ui.routineSelect.value;
-    localStorage.setItem('workout_routine', JSON.stringify(state.routine));
-    localStorage.setItem('active_routine', state.activeRoutine);
-    location.reload();
-};
+// ─── Gesture: Interaction Zone ────────────────────────────────────────────────
+// 2-tap = reset | 3-tap = toggle bar/timer mode
+ui.zone.addEventListener('click', () => {
+    state.zoneTaps++;
+    clearTimeout(state.zoneTimer);
+    state.zoneTimer = setTimeout(() => {
+        if (state.zoneTaps === 2) resetExercise();
+        if (state.zoneTaps >= 3) toggleDisplayMode();
+        state.zoneTaps = 0;
+    }, 300);
+});
 
-document.getElementById('add-exercise').onclick = () => {
-    const div = document.createElement('div');
-    div.className = 'admin-row';
-    div.innerHTML = `<input type="text" placeholder="Name" class="in-name"><input type="number" placeholder="Sec" class="in-dur"><input type="number" placeholder="Rest" class="in-break"><input type="text" placeholder="Img URL" class="in-img">`;
-    ui.adminInputs.appendChild(div);
-};
-
-document.getElementById('add-routine-btn').onclick = () => {
-    const n = document.getElementById('new-routine-name').value;
-    if(n && !state.routine[n]) { state.routine[n] = []; renderAdmin(); }
-};
-
-// INITIALIZE
-ui.playBtn.onclick = () => {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    state.isMuted = false;
-    if (state.isRunning) {
-        cancelAnimationFrame(state.animFrame);
-        state.isRunning = false;
-        ui.playBtn.innerText = '▶';
-        state.remainingTime = (state.endTime - Date.now()) / 1000;
+function toggleDisplayMode() {
+    const zone = ui.zone;
+    if (zone.classList.contains('timer-mode')) {
+        zone.classList.replace('timer-mode', 'bar-mode');
     } else {
-        state.isRunning = true;
-        ui.playBtn.innerText = '||';
-        state.endTime = Date.now() + (state.remainingTime * 1000);
-        state.animFrame = requestAnimationFrame(tick);
+        zone.classList.replace('bar-mode', 'timer-mode');
     }
-};
+}
 
-document.getElementById('close-admin').onclick = () => ui.admin.classList.add('hidden');
-document.getElementById('close-calendar').onclick = () => ui.calendar.classList.add('hidden');
-document.getElementById('delete-all').onclick = () => { if(confirm("Clear all?")) { localStorage.clear(); location.reload(); }};
-ui.routineSelect.onchange = (e) => loadAdminRows(e.target.value);
+function resetExercise() {
+    stopRAF();
+    state.isRunning = false;
+    ui.playBtn.textContent = '▶';
+    loadExercise(state.currentExerciseIndex);
+}
 
-const saveStreak = () => {
+// ─── Gesture: Flame (2-tap = calendar | 3-tap = theme) ───────────────────────
+ui.flame.addEventListener('click', () => {
+    state.flameTaps++;
+    clearTimeout(state.flameTimer);
+    state.flameTimer = setTimeout(() => {
+        if (state.flameTaps === 2) openCalendar();
+        if (state.flameTaps >= 3) document.body.classList.toggle('dark-theme');
+        state.flameTaps = 0;
+    }, 300);
+});
+
+// ─── Admin (double-click title) ───────────────────────────────────────────────
+ui.title.addEventListener('dblclick', openAdmin);
+
+function openAdmin() {
+    renderRoutineTabs();
+    loadAdminFields(state.editingRoutineId || state.activeRoutineId || state.routines[0]?.id);
+    ui.adminOverlay.classList.remove('hidden');
+}
+
+function renderRoutineTabs() {
+    ui.routineTabs.innerHTML = '';
+    state.routines.forEach(r => {
+        const tab = document.createElement('div');
+        tab.className = `routine-tab${r.id === state.editingRoutineId ? ' active' : ''}`;
+        tab.dataset.id = r.id;
+        tab.innerHTML = `<span class="tab-name">${r.name}</span><span class="tab-del" data-del="${r.id}">✕</span>`;
+        tab.addEventListener('click', (e) => {
+            if (e.target.dataset.del) {
+                deleteRoutine(e.target.dataset.del);
+            } else {
+                loadAdminFields(r.id);
+            }
+        });
+        ui.routineTabs.appendChild(tab);
+    });
+}
+
+function loadAdminFields(routineId) {
+    state.editingRoutineId = routineId;
+    // Highlight tab
+    document.querySelectorAll('.routine-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.id === routineId);
+    });
+    const routine = state.routines.find(r => r.id === routineId);
+    ui.adminInputs.innerHTML = '';
+    if (!routine) return;
+    routine.exercises.forEach(ex => addEntry(ex));
+}
+
+function addEntry(data = { name: '', dur: 60, rest: 15, img: '' }) {
+    const div = document.createElement('div');
+    div.className = 'admin-exercise-entry';
+    div.innerHTML = `
+        <input type="text"   class="in-name"  placeholder="Name"       value="${escHtml(data.name)}">
+        <input type="number" class="in-dur"   placeholder="60"         value="${data.dur}"  min="1">
+        <input type="number" class="in-rest"  placeholder="15"         value="${data.rest}" min="0">
+        <input type="text"   class="in-img"   placeholder="https://…" value="${escHtml(data.img)}">
+        <button class="entry-del-btn" title="Remove">✕</button>
+    `;
+    div.querySelector('.entry-del-btn').addEventListener('click', () => div.remove());
+    ui.adminInputs.appendChild(div);
+}
+
+function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+function saveRoutine() {
+    if (!state.editingRoutineId) return;
+    const entries = [...ui.adminInputs.querySelectorAll('.admin-exercise-entry')];
+    const idx     = state.routines.findIndex(r => r.id === state.editingRoutineId);
+    if (idx === -1) return;
+    state.routines[idx].exercises = entries.map(e => ({
+        name: e.querySelector('.in-name').value.trim(),
+        dur:  parseInt(e.querySelector('.in-dur').value)  || 30,
+        rest: parseInt(e.querySelector('.in-rest').value) || 0,
+        img:  e.querySelector('.in-img').value.trim()
+    }));
+    persist();
+    location.reload();   // Hard state refresh as requested
+}
+
+function addRoutine() {
+    const name = prompt('Routine name (e.g. "Push Day"):');
+    if (!name) return;
+    const r = { id: uid(), name: name.trim(), exercises: [] };
+    state.routines.push(r);
+    persist();
+    renderRoutineTabs();
+    loadAdminFields(r.id);
+}
+
+function deleteRoutine(routineId) {
+    if (!confirm('Delete this routine?')) return;
+    state.routines = state.routines.filter(r => r.id !== routineId);
+    persist();
+    if (state.editingRoutineId === routineId) {
+        state.editingRoutineId = state.routines[0]?.id || null;
+    }
+    renderRoutineTabs();
+    loadAdminFields(state.editingRoutineId);
+}
+
+function deleteAllData() {
+    if (!confirm('⚠️ This will permanently erase all routines and streak history. Continue?')) return;
+    localStorage.removeItem('wf_routines');
+    localStorage.removeItem('wf_streak');
+    location.reload();
+}
+
+// ─── Calendar ─────────────────────────────────────────────────────────────────
+function openCalendar() {
+    calViewDate = new Date();
+    renderCalendar();
+    ui.calOverlay.classList.remove('hidden');
+}
+
+function renderCalendar() {
+    const y   = calViewDate.getFullYear();
+    const m   = calViewDate.getMonth();
+    const today = new Date();
+
+    ui.calLabel.textContent = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(calViewDate);
+
+    const firstDay   = new Date(y, m, 1).getDay();  // 0=Sun
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+    ui.calGrid.innerHTML = '';
+
+    // Empty leading cells
+    for (let i = 0; i < firstDay; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'cal-cell empty';
+        ui.calGrid.appendChild(empty);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        const date    = new Date(y, m, d);
+        const ds      = date.toDateString();
+        const active  = state.streakHistory.includes(ds);
+        const isToday = date.toDateString() === today.toDateString();
+        const cell    = document.createElement('div');
+        cell.className = `cal-cell${active ? ' active' : ''}${isToday && !active ? ' today' : ''}`;
+        cell.textContent = d;
+        ui.calGrid.appendChild(cell);
+    }
+
+    // Total streak count
+    ui.totalStreak.textContent = state.streakHistory.length;
+}
+
+document.getElementById('cal-prev').addEventListener('click', () => {
+    calViewDate.setMonth(calViewDate.getMonth() - 1);
+    renderCalendar();
+});
+document.getElementById('cal-next').addEventListener('click', () => {
+    calViewDate.setMonth(calViewDate.getMonth() + 1);
+    renderCalendar();
+});
+
+// ─── Streak ───────────────────────────────────────────────────────────────────
+function saveStreak() {
     const today = new Date().toDateString();
     if (!state.streakHistory.includes(today)) {
         state.streakHistory.push(today);
-        localStorage.setItem('streak_history', JSON.stringify(state.streakHistory));
-        document.getElementById('streak-count').innerText = state.streakHistory.length;
+        persist();
+        ui.streakCount.textContent = state.streakHistory.length;
     }
-};
+}
 
-document.getElementById('streak-count').innerText = state.streakHistory.length;
+// ─── Wire up buttons ──────────────────────────────────────────────────────────
+ui.playBtn.addEventListener('click', startTimer);
+
+document.getElementById('add-exercise').addEventListener('click', () => addEntry());
+document.getElementById('add-routine-btn').addEventListener('click', addRoutine);
+document.getElementById('save-routine').addEventListener('click', saveRoutine);
+document.getElementById('close-admin').addEventListener('click', () => ui.adminOverlay.classList.add('hidden'));
+document.getElementById('delete-all-data').addEventListener('click', deleteAllData);
+document.getElementById('close-calendar').addEventListener('click', () => ui.calOverlay.classList.add('hidden'));
+
+// Close overlays on backdrop click
+[ui.adminOverlay, ui.calOverlay].forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.classList.add('hidden');
+    });
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+ui.streakCount.textContent = state.streakHistory.length;
 loadExercise(0);
