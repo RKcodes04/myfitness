@@ -1,264 +1,68 @@
-/* style.css */
-
-/* --- Root Variables & Defaults --- */
 :root {
-    --bg-color: #ffffff;
-    --text-color: #333333;
-    --accent-color: #FF6600; /* Bright Orange */
-    --bar-bg: #E0E0E0;
-    --ring-glow: #FF6600;
-    --overlay-bg: rgba(0, 0, 0, 0.5);
-    
-    --timer-blue: #0088FF; /* From gradient image */
-    --timer-peach: #FF88AA; /* From gradient image */
-
-    --transition: 0.3s ease;
+    --orange: #FF6600;
+    --gray: #e0e0e0;
+    --timer-blue-top: #5082ff;
+    --timer-blue-bot: #3255ff;
+    --timer-peach-top: #ff9a8b;
+    --timer-peach-bot: #ff6a88;
 }
 
-/* Base resets */
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    transition: var(--transition);
-    overflow: hidden;
-    height: 100vh;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+body { background: #fff; height: 100vh; overflow: hidden; }
 
-/* --- App Layout --- */
 .app-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    height: 100%;
-    padding: 20px;
-    max-width: 500px;
-    margin: 0 auto;
+    display: flex; flex-direction: column; height: 100%; padding: 30px;
 }
 
-/* --- Header --- */
-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-top: 10px;
+header { display: flex; justify-content: space-between; align-items: center; }
+.today-title { font-size: 2rem; font-weight: 900; cursor: pointer; user-select: none; }
+.streak-flame { font-size: 1.5rem; cursor: pointer; }
+
+.content-area { flex-grow: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+.exercise-image { width: 300px; height: 200px; background: #f0f0f0; border-radius: 15px; background-size: cover; background-position: center; margin-bottom: 20px; }
+.exercise-name { font-size: 1.5rem; font-weight: bold; text-align: center; }
+
+/* Breathing Ring (Previous Design Style) */
+.breathing-ring-container { position: relative; width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; }
+.breathing-ring { 
+    position: absolute; width: 100%; height: 100%; border: 10px solid var(--orange); border-radius: 50%; 
+    animation: pulse 4s ease-in-out infinite; opacity: 0.6;
 }
-
-.today-title {
-    font-size: 2.5rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    cursor: pointer; /* Interaction hint */
+@keyframes pulse {
+    0%, 100% { transform: scale(0.8); opacity: 0.3; box-shadow: 0 0 0px var(--orange); }
+    50% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 30px var(--orange); }
 }
+.breathing-text { font-weight: bold; color: var(--orange); font-size: 1.2rem; }
 
-.streak-flame {
-    font-size: 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
+/* Control Bar */
+.control-bar { position: relative; padding-bottom: 40px; display: flex; align-items: center; justify-content: space-between; }
+.progress-container { position: absolute; top: -20px; width: 100%; height: 6px; background: var(--gray); border-radius: 10px; overflow: hidden; transition: 0.3s; }
+.progress-bar { height: 100%; width: 0%; background: var(--orange); }
 
-/* --- Main Content --- */
-.content-area {
-    flex-grow: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    margin-top: -50px; /* Shift content visual center */
-}
+/* Timer Gradient */
+.timer-display { font-size: 4.5rem; font-weight: 900; display: flex; cursor: pointer; user-select: none; }
+.timer-min { background: linear-gradient(var(--timer-blue-top), var(--timer-blue-bot)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.timer-sec { background: linear-gradient(var(--timer-peach-top), var(--timer-peach-bot)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.colon { color: #888; margin: 0 5px; }
 
-.active-view {
-    display: block;
-}
+/* Bar Mode Toggle */
+.timer-display.bar-mode { visibility: hidden; }
+.timer-display.bar-mode + .play-pause-btn { visibility: visible; } /* Keep button visible */
+.bar-mode-active .progress-container { height: 40px; top: -50px; }
 
-.hidden {
-    display: none !important;
-}
+.play-pause-btn { width: 60px; height: 60px; border-radius: 50%; border: none; background: var(--orange); color: #fff; font-size: 1.5rem; cursor: pointer; }
 
-/* Exercise Card */
-.exercise-card {
-    text-align: center;
-    max-width: 90%;
-}
+/* Calendar & Overlays */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: #fff; padding: 30px; border-radius: 20px; width: 90%; max-width: 400px; position: relative; max-height: 80vh; overflow-y: auto; }
+.hidden { display: none !important; }
 
-.exercise-image {
-    width: 100%;
-    aspect-ratio: 16/9;
-    background-color: #EEE; /* Placeholder */
-    border-radius: 12px;
-    background-size: cover;
-    background-position: center;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
+.calendar-grid-container { position: relative; margin-top: 20px; padding: 20px 0; }
+.streak-line { position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: var(--gray); z-index: 1; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 15px; position: relative; z-index: 2; }
+.day-cell { display: flex; flex-direction: column; align-items: center; font-size: 0.7rem; }
+.flame-active { background: var(--orange); color: #fff; width: 35px; height: 35px; border-radius: 50% 50% 10% 50%; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; margin-bottom: 5px; }
+.flame-active span { transform: rotate(45deg); font-weight: bold; }
 
-.exercise-name {
-    font-size: 1.5rem;
-    font-weight: 600;
-}
-
-/* --- Transition/Breathing Screen --- */
-.transition-card {
-    display: none; /* Controlled by active class swap */
-}
-
-/* Breathing Ring & Animation */
-.breathing-ring-container {
-    position: relative;
-    width: 250px;
-    height: 250px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.breathing-ring {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    border: 15px solid rgba(255, 102, 0, 0.2); /* Faint orange */
-    animation: breathing 4s ease-in-out infinite; /* Keep animation infinite, time controlled by JS */
-}
-
-.breathing-text {
-    font-size: 2rem;
-    font-weight: 800;
-    color: var(--accent-color);
-    letter-spacing: 2px;
-}
-
-/* CSS Keyframes for the glowing/pulsing effect */
-@keyframes breathing {
-    0% {
-        box-shadow: 0 0 10px rgba(255, 102, 0, 0.4);
-        transform: scale(0.95);
-        border-color: rgba(255, 102, 0, 0.3);
-    }
-    50% {
-        box-shadow: 0 0 40px rgba(255, 102, 0, 1), 0 0 10px rgba(255, 102, 0, 0.6);
-        transform: scale(1.05);
-        border-color: rgba(255, 102, 0, 0.9);
-    }
-    100% {
-        box-shadow: 0 0 10px rgba(255, 102, 0, 0.4);
-        transform: scale(0.95);
-        border-color: rgba(255, 102, 0, 0.3);
-    }
-}
-
-/* --- Control Bar (Bottom) --- */
-.control-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 15px;
-    padding: 15px;
-    border-radius: 12px;
-    background-color: #FAFAFA;
-    box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
-}
-
-/* Simplified Progress Bar */
-.progress-bar-container {
-    height: 10px;
-    flex-grow: 1;
-    background-color: var(--bar-bg);
-    border-radius: 5px;
-    overflow: hidden;
-}
-
-.progress-bar {
-    height: 100%;
-    width: 0%; /* Dynamic */
-    background-color: var(--accent-color);
-    transition: width 0.1s linear; /* Smooth progress */
-}
-
-/* Gradient Timer Display */
-.timer-display {
-    font-size: 1.8rem;
-    font-weight: 800;
-    display: flex;
-    font-variant-numeric: tabular-nums; /* Monospaced numbers */
-    cursor: help; /* Toggle/Reset area */
-}
-
-/* Color definitions from the image detail */
-.timer-min {
-    color: var(--timer-blue);
-}
-.timer-sec {
-    color: var(--timer-peach);
-}
-
-/* Play button */
-.play-pause-btn {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    border: none;
-    background-color: var(--accent-color);
-    color: #FFF;
-    font-size: 1.5rem;
-    cursor: pointer;
-    transition: var(--transition);
-}
-
-.play-pause-btn:hover {
-    transform: scale(1.05);
-}
-
-/* --- Admin Overlay --- */
-.admin-overlay {
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background-color: var(--overlay-bg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-.admin-panel {
-    background-color: var(--bg-color);
-    padding: 30px;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 400px;
-    max-height: 80vh;
-    overflow-y: auto;
-}
-
-.admin-panel h2 { margin-bottom: 20px; text-align: center; }
-
-#admin-inputs { margin-bottom: 20px; }
-
-/* Dynamic fields added by JS */
-.admin-exercise-entry {
-    background-color: #f9f9f9;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-}
-
-.admin-input-group { margin-bottom: 10px; }
-.admin-input-group label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9rem; }
-.admin-input-group input {
-    width: 100%; padding: 8px;
-    border: 1px solid #CCC; border-radius: 4px;
-}
-
-.admin-actions {
-    display: flex; gap: 10px; justify-content: space-between;
-}
-
-.add-btn, .save-btn, .close-btn {
-    padding: 10px 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; transition: var(--transition);
-}
-
-.add-btn { background-color: #EEE; color: #333; width: 100%; margin-bottom: 10px;}
-.save-btn { background-color: var(--accent-color); color: #FFF; }
-.close-btn { background-color: #CCC; color: #333; }
+.admin-exercise-entry { background: #f9f9f9; padding: 10px; margin-bottom: 10px; border-radius: 10px; }
+.admin-exercise-entry input { width: 100%; margin: 5px 0; padding: 8px; border: 1px solid var(--gray); border-radius: 5px; }
