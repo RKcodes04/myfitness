@@ -3,61 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workout Flow</title>
+    <title>Minimalist Workout</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="light-theme">
     
     <div class="app-container">
-        
         <header>
-            <h1 id="today-title" class="today-title" title="Double-click to edit">CORE DAY</h1>
-            <div id="streak-flame" class="streak-flame">
+            <h1 id="today-title" class="today-title">MONDAY: PUSH</h1>
+            <div id="flame-trigger" class="streak-flame">
                 <span class="flame-icon">🔥</span> <span id="streak-count">7</span>
-            </id>
+            </div>
         </header>
 
         <main class="content-area">
-            
-            <div id="exercise-view" class="exercise-card active-view">
+            <div id="exercise-view" class="active-view">
                 <div id="exercise-image" class="exercise-image"></div>
-                <p id="exercise-name" class="exercise-name">Hold...</p>
+                <p id="exercise-name" class="exercise-name">Loading...</p>
             </div>
 
-            <div id="breathing-view" class="transition-card">
+            <div id="breathing-view" class="hidden">
                 <div class="breathing-ring-container">
                     <div class="breathing-ring"></div>
                     <span class="breathing-text">BREATHE</span>
                 </div>
             </div>
-
         </main>
 
         <footer class="control-bar">
-            <div id="progress-bar-container" class="progress-bar-container">
+            <div class="progress-container">
                 <div id="progress-bar" class="progress-bar"></div>
             </div>
             
-            <div id="timer-display" class="timer-display" title="Triple-tap to toggle | Double-click to reset">
-                <span id="timer-min" class="timer-min">08</span>:<span id="timer-sec" class="timer-sec">37</span>
+            <div id="timer-display" class="timer-display">
+                <span id="timer-min" class="timer-min">00</span><span class="colon">:</span><span id="timer-sec" class="timer-sec">00</span>
             </div>
             
-            <button id="play-pause-btn" class="play-pause-btn">
-                <span id="btn-icon">▶</span>
-            </button>
+            <button id="play-pause-btn" class="play-pause-btn">▶</button>
         </footer>
-
     </div>
 
-    <div id="admin-overlay" class="admin-overlay hidden">
-        <div class="admin-panel">
-            <h2>EDIT ROUTINE</h2>
-            <div id="admin-inputs">
-                </div>
-            <button id="add-exercise-btn" class="add-btn">+ Add Exercise</button>
-            <div class="admin-actions">
-                <button id="save-routine-btn" class="save-btn">Save</button>
-                <button id="close-admin-btn" class="close-btn">Close</button>
+    <div id="calendar-overlay" class="overlay hidden">
+        <div class="modal">
+            <span id="close-calendar" class="close-icon">&times;</span>
+            <h3>Workout Streak</h3>
+            <div class="calendar-grid-container">
+                <div class="streak-line"></div>
+                <div id="calendar-grid" class="calendar-grid">
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-overlay" class="overlay hidden">
+        <div class="modal">
+            <h2>Edit Routine</h2>
+            <div id="admin-inputs"></div>
+            <button id="add-exercise" class="btn-secondary">+ Add Exercise</button>
+            <div class="modal-actions">
+                <button id="save-routine" class="btn-primary">Save</button>
+                <button id="close-admin" class="btn-close">Close</button>
             </div>
         </div>
     </div>
