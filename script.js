@@ -43,7 +43,8 @@ const ui = {
     admin: document.getElementById('admin-overlay'),
     calendar: document.getElementById('calendar-overlay'),
     daySelector: document.getElementById('day-selector'),
-    adminInputs: document.getElementById('admin-inputs')
+    adminInputs: document.getElementById('admin-inputs'),
+    flame: document.getElementById('flame-trigger') // FIX: Added missing DOM reference
 };
 
 // --- Gestures ---
@@ -74,12 +75,24 @@ const loadExercise = (idx) => {
     const ex = todayData[idx];
 
     ui.title.innerText = `${day.toUpperCase()}`;
+    
+    // FIX: Clean handling of end-of-workout state
     if (!ex) {
         document.getElementById('exercise-name').innerText = "Workout Complete!";
+        document.getElementById('exercise-image').style.backgroundImage = 'none';
+        state.remainingTime = 0;
+        state.totalDuration = 1; // Prevents division by zero in UI update
+        ui.playBtn.style.opacity = '0.5';
+        ui.playBtn.style.pointerEvents = 'none'; // Disables play button
+        updateUI();
         saveStreak();
         return;
     }
 
+    // Reactivate controls if routine exists
+    ui.playBtn.style.opacity = '1';
+    ui.playBtn.style.pointerEvents = 'auto';
+    
     state.currentExerciseIndex = idx;
     state.totalDuration = ex.dur;
     state.remainingTime = ex.dur;
@@ -135,11 +148,14 @@ const startBreathing = () => {
 };
 
 const updateUI = () => {
-    const m = Math.floor(state.remainingTime / 60);
-    const s = state.remainingTime % 60;
+    const m = Math.floor(Math.max(0, state.remainingTime) / 60);
+    const s = Math.max(0, state.remainingTime) % 60;
     document.getElementById('timer-min').innerText = String(m).padStart(2, '0');
     document.getElementById('timer-sec').innerText = String(s).padStart(2, '0');
-    ui.progress.style.width = `${(1 - state.remainingTime / state.totalDuration) * 100}%`;
+    
+    // FIX: Prevent NaN / Infinity if duration is 0
+    const percent = state.totalDuration > 0 ? (1 - state.remainingTime / state.totalDuration) * 100 : 0;
+    ui.progress.style.width = `${percent}%`;
 };
 
 // --- Admin & Day Selection ---
@@ -183,15 +199,25 @@ const saveRoutine = () => {
     }));
     localStorage.setItem('workout_routine', JSON.stringify(state.routine));
     ui.admin.classList.add('hidden');
-    loadExercise(0);
+    
+    // Refresh only if modifying today's routine
+    if(state.editingDay === getTodayKey()) {
+        resetExercise(); 
+    }
 };
 
 // --- Calendar & Streak ---
+const updateStreakUI = () => {
+    // FIX: Added function to dynamically update the streak visual on the frontend
+    document.getElementById('streak-count').innerText = state.streakHistory.length;
+};
+
 const saveStreak = () => {
     const today = new Date().toDateString();
     if (!state.streakHistory.includes(today)) {
         state.streakHistory.push(today);
         localStorage.setItem('streak_history', JSON.stringify(state.streakHistory));
+        updateStreakUI();
     }
 };
 
@@ -229,4 +255,6 @@ document.getElementById('save-routine').onclick = saveRoutine;
 document.getElementById('close-admin').onclick = () => ui.admin.classList.add('hidden');
 document.getElementById('close-calendar').onclick = () => ui.calendar.classList.add('hidden');
 
+// Initialize
+updateStreakUI();
 loadExercise(0);
